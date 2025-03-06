@@ -1,30 +1,125 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import {Head} from '@inertiajs/vue3';
+import {ref, onMounted} from 'vue';
 
-
-const items = ref([
-    { id: 1, name: 'example.pdf', size: '2.5 MB', type: 'file', isSelected: false },
-    { id: 2, name: 'photo.jpg', size: '1.1 MB', type: 'file', isSelected: false },
-    { id: 3, name: 'Documents', size: '10 MB', type: 'folder', isSelected: false },
-]);
+const fileList = ref([]);
+const currentUserPath = ref('/');
+const previousUserPath = ref(null);
+const isCreateFolderModalOpen = ref(false);
+const inputFolderName = ref('');
+const fileInput = ref(null);
+const uploadStatusBar = ref(0);
 
 const openFolder = (path) => {
+    try {
+        axios.post('/api/file/open', {
+            path: path,
+        }).then(response => {
+            previousUserPath.value = currentUserPath.value;
 
+            fileList.value = response.data.files;
+            currentUserPath.value = path;
+        })
+    } catch (error) {
+        alert('Error while requesting root folder')
+    }
 }
 
-const toggleSelection = (item) => {
-    item.isSelected = !item.isSelected;
+const createFolder = () => {
+    const folderName = inputFolderName.value.trim();
+    if (!folderName) {
+        alert('Введите название папки');
+    }
+
+    let pathToNewFolder = '';
+    if (currentUserPath.value === '/') {
+        pathToNewFolder = folderName;
+    }
+    else {
+        pathToNewFolder = currentUserPath.value + '/' + inputFolderName.value;
+    }
+
+    try {
+        axios.post('/api/file/create', {
+            path: pathToNewFolder,
+        }).then(response => {
+            openFolder(currentUserPath.value)
+            closeCreateFolderModalOpen();
+        })
+    } catch (error) {
+        alert(error)
+    }
+}
+
+const handleFileUpload = (event) => {
+    const files = event.target.files;
+
+    if (files.length > 0) {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('file[]', files[i]);
+        }
+        formData.append('path', currentUserPath.value);
+
+        try {
+            axios.post('/api/file/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                onUploadProgress: (progressEvent) => {
+                    uploadStatusBar.value = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                },
+            })
+            .then(response => {
+                openFolder(currentUserPath.value)
+                uploadStatusBar.value = 0
+            })
+        } catch (error) {
+            alert('Error while uploading files: ' + error);
+        }
+    }
+}
+
+const triggerFileInput = () => {
+    fileInput.value.click();
 };
 
+const openCreateFolderModal = () => {
+    isCreateFolderModalOpen.value = true;
+}
+
+const closeCreateFolderModalOpen = () => {
+    isCreateFolderModalOpen.value = false;
+}
+
+const goBack = () => {
+    if (previousUserPath.value) {
+        openFolder(previousUserPath.value);
+    } else {
+        alert('cant go back');
+    }
+};
+
+const deleteFile = (path) => {
+    try {
+        axios.post('/api/file/delete', {
+            path: path,
+        }).then(response => {
+            openFolder(currentUserPath.value)
+        })
+    } catch (error) {
+        alert(error)
+    }
+}
+
 onMounted(() => {
-    openFolder('/');
+    openFolder(currentUserPath.value);
 });
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head title="Dashboard"/>
 
     <AuthenticatedLayout>
         <template #header>
@@ -40,41 +135,68 @@ onMounted(() => {
                         <div class="container-fluid">
                             <h2 class="mb-4 text-2xl font-bold text-gray-800">Ваши файлы</h2>
                             <div class="mb-6 flex space-x-4">
-                                <button class="btn btn-primary">
+                                <button class="btn btn-primary" @click="triggerFileInput">
                                     <i class="fas fa-upload mr-2"></i> Загрузить файл
                                 </button>
-                                <button class="btn btn-secondary">
+                                <input
+                                    style="display: none;"
+                                    ref="fileInput"
+                                    type="file"
+                                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    multiple
+                                    @change="handleFileUpload"
+                                />
+                                <button class="btn btn-secondary" @click="openCreateFolderModal()">
                                     <i class="fas fa-folder-plus mr-2"></i> Создать папку
                                 </button>
+                            </div>
+                            <div v-if="uploadStatusBar > 0" class="progress-bar">
+                                <div class="progress-fill" :style="{ width: uploadStatusBar + '%' }"></div>
                             </div>
                             <div class="bg-gray-50 p-4 rounded-lg">
                                 <div class="grid grid-cols-1 gap-4">
                                     <div
-                                        v-for="item in items"
-                                        :key="item.id"
                                         class="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm cursor-pointer"
-                                        :class="{ 'bg-blue-50': item.isSelected }"
-                                        @click="toggleSelection(item)"
+                                        v-if="previousUserPath != currentUserPath"
+                                        @click="goBack()"
                                     >
                                         <div class="flex items-center space-x-4">
                                             <i
-                                                v-if="item.type === 'file'"
-                                                class="fas fa-file text-gray-500"
+                                                class="fas fa-arrow-left text-gray-500"
+                                            ></i>
+                                            <div>
+                                                <span class="text-gray-800">...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div
+                                        v-for="item in fileList"
+                                        :key="item.name"
+                                        :class="[
+                                            'flex items-center justify-between bg-white p-4 rounded-lg shadow-sm',
+                                            item.type === 'directory' ? 'cursor-pointer' : 'cursor-default'
+                                        ]"
+                                        @click="item.type === 'directory' ? openFolder(item.name) : null"
+                                    >
+                                        <div class="flex items-center space-x-4">
+                                            <i
+                                                v-if="item.type === 'directory'"
+                                                class="fas fa-folder text-yellow-500"
                                             ></i>
                                             <i
                                                 v-else
-                                                class="fas fa-folder text-yellow-500"
+                                                class="fas fa-file text-gray-500"
                                             ></i>
                                             <div>
                                                 <span class="text-gray-800">{{ item.name }}</span>
                                                 <span class="block text-sm text-gray-500">
-                                                    {{ item.type === 'file' ? item.size : 'Папка' }}
+                                                    {{ item.size }}
                                                 </span>
                                             </div>
                                         </div>
                                         <button
                                             class="text-red-500 hover:text-red-700"
-                                            @click.stop
+                                            @click="deleteFile(item.name)"
                                         >
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -83,6 +205,35 @@ onMounted(() => {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="isCreateFolderModalOpen"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+        >
+            <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+                <h2 class="text-xl font-bold mb-4">Создать папку</h2>
+                <input
+                    v-model="inputFolderName"
+                    type="text"
+                    placeholder="Введите название папки"
+                    class="w-full p-2 border rounded-lg mb-4"
+                />
+                <div class="flex justify-end space-x-4">
+                    <button
+                        class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg"
+                        @click="closeCreateFolderModalOpen()"
+                    >
+                        Отмена
+                    </button>
+                    <button
+                        class="bg-blue-500 text-white px-4 py-2 rounded-lg"
+                        @click="createFolder"
+                    >
+                        Создать
+                    </button>
                 </div>
             </div>
         </div>
@@ -132,4 +283,29 @@ onMounted(() => {
 .bg-blue-50 {
     background-color: #eff6ff;
 }
+
+.upload-label {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #4caf50;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 10px;
+    background: #e0e0e0;
+    border-radius: 5px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.3s;
+}
+
 </style>

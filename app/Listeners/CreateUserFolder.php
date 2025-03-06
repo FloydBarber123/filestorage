@@ -3,7 +3,9 @@
 namespace App\Listeners;
 
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class CreateUserFolder
 {
@@ -20,8 +22,12 @@ class CreateUserFolder
      */
     public function handle(Registered $event): void
     {
-        $user = $event->user;
-        $folderName = 'user_' . $user->id;
-        Storage::disk('local')->makeDirectory($folderName);
+        try {
+            $user = $event->user;
+            $folderName = 'user_' . $user->id;
+            Storage::disk('local')->makeDirectory($folderName);
+        } catch (Throwable $t) {
+            Log::error($t->getMessage());
+        }
     }
 }

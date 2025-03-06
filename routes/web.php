@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\FolderController;
+use App\Http\Controllers\FileController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -11,8 +11,11 @@ Route::get('/', function () {
 
 Route::middleware('auth')->group(function () {
     Route::prefix('api')->group(function () {
-        Route::prefix('folder')->group(function () {
-            Route::post('/open', [FolderController::class, 'open'])->name('folders.open');
+        Route::prefix('file')->group(function () {
+            Route::post('/open', [FileController::class, 'openFolder'])->name('folders.open');
+            Route::post('/create', [FileController::class, 'createFolder'])->name('folders.create');
+            Route::post('/upload', [FileController::class, 'upload'])->name('folders.upload');
+            Route::post('/delete', [FileController::class, 'delete'])->name('folders.destroy');
         });
     });
 
