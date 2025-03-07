@@ -99,13 +99,39 @@ class FileController extends Controller
         try {
             $this->storageService->deleteFile($request->input('path'));
         } catch (StorageFilesException $e) {
-            Log::error("Create folder error: " . $e->getMessage());
+            Log::error("files error: " . $e->getMessage());
 
             return response()->json(
                 [
                     'error' => $e->getMessage(),
                 ],
                 422
+            );
+        } catch (Throwable $t) {
+            Log::error("Unexpected error: " . $t->getMessage());
+
+            return response()->json(
+                [
+                    'error' => 'Unexpected error',
+                ],
+                500
+            );
+        }
+    }
+
+    public function searchFiles(Request $request): JsonResponse
+    {
+        $request->validate([
+            'dateFrom' => 'nullable|date',
+            'dateTo' => 'nullable|date|after_or_equal:dateFrom',
+            'maxSize' => 'nullable|numeric|min:1',
+        ]);
+
+        try {
+            return response()->json(
+                [
+                    'files' => $this->storageService->searchFiles($request),
+                ]
             );
         } catch (Throwable $t) {
             Log::error("Unexpected error: " . $t->getMessage());

@@ -2,9 +2,11 @@
 
 namespace App\Service;
 
+use App\Dto\StorageFilesFilterDto;
 use App\Entity\StorageFileEntity;
 use App\Exceptions\StorageFilesException;
 use App\Repository\StorageFilesRepository;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
@@ -21,6 +23,19 @@ class StorageFilesService
     {
         $this->rootUserFolder = $this->getUserRootFolderPath();
         $this->repository = new StorageFilesRepository();
+    }
+
+    public function searchFiles(Request $request): array
+    {
+        return $this->repository
+            ->searchByFilter(
+                new StorageFilesFilterDto(
+                    dateFrom: $request->input('dateFrom'),
+                    dateTo: $request->input('dateTo'),
+                    maxSize: $request->input('maxSize')
+                )
+            )
+            ->toArray();
     }
 
     public function uploadFiles(array $files, string $path)
@@ -46,7 +61,8 @@ class StorageFilesService
                         userId: Auth::id(),
                         name: $originalName,
                         size: $file->getSize(),
-                        path: $targetPath
+                        path: $path,
+                        ext: $file->getClientOriginalExtension()
                     )
                 );
             }
@@ -66,7 +82,7 @@ class StorageFilesService
         }
     }
 
-    public function openFolder(string $path): array
+    public function openFolder(string $path, int $page = 1, int $perPage = 10): array
     {
         $pathToOpen = $this->rootUserFolder . $path;
         if (!$this->fileIsExist($pathToOpen)) {
@@ -127,11 +143,15 @@ class StorageFilesService
         return array_map(function ($dir) {
             $relativePath = str_replace($this->rootUserFolder, '', $dir);
 
-            return [
-                'name' => $relativePath,
-                'type' => 'directory',
-                'size' => $this->getDirectorySize($dir),
-            ];
+            return (new StorageFileEntity(
+                id: null,
+                userId: Auth::id(),
+                name: $relativePath,
+                size: $this->getDirectorySize($dir),
+                path: $relativePath,
+                ext: 'directory'
+            ))
+                ->fromEntity();
         }, $directoriesWithRoot);
     }
 
@@ -139,17 +159,21 @@ class StorageFilesService
     {
         $filesWithRoot = Storage::files($pathToOpen);
 
-        return array_map(function ($file) {
-            $relativePath = str_replace($this->rootUserFolder, '', $file);
+        return array_map(function ($file) use ($pathToOpen) {
+            $relativePath = str_replace($this->rootUserFolder, '', $pathToOpen);
             $extension = pathinfo($file, PATHINFO_EXTENSION);
             $sizeBytes = Storage::size($file);
             $sizeMb = $this->formatSize($sizeBytes);
 
-            return [
-                'name' => $relativePath,
-                'type' => $extension,
-                'size' => $sizeMb,
-            ];
+            return (new StorageFileEntity(
+                id: null,
+                userId: Auth::id(),
+                name: basename($file),
+                size: $sizeMb,
+                path: $relativePath,
+                ext: $extension
+            ))
+                ->fromEntity();
         }, $filesWithRoot);
     }
 

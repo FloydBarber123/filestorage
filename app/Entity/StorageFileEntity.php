@@ -8,16 +8,28 @@ class StorageFileEntity
      * @param int|null $id
      * @param int $userId
      * @param string $name
-     * @param int $size
+     * @param string|int $size
      * @param string $path
+     * @param string $ext
      */
     public function __construct(
         protected ?int $id = null,
         protected int $userId,
         protected string $name,
-        protected int $size,
+        protected string|int $size,
         protected string $path,
+        protected string $ext,
     ) {
+    }
+
+    public function getExt(): string
+    {
+        return $this->ext;
+    }
+
+    public function setExt(string $ext): void
+    {
+        $this->ext = $ext;
     }
 
     public function getId(): ?int
@@ -50,12 +62,12 @@ class StorageFileEntity
         $this->name = $name;
     }
 
-    public function getSize(): int
+    public function getSize(): string|int
     {
         return $this->size;
     }
 
-    public function setSize(int $size): void
+    public function setSize(string|int $size): void
     {
         $this->size = $size;
     }
@@ -77,6 +89,7 @@ class StorageFileEntity
             'user_id' => $this->getUserId(),
             'name' => $this->getName(),
             'size' => $this->getSize(),
+            'ext' => $this->getExt(),
             'path' => $this->getPath(),
         ];
     }

@@ -1,25 +1,34 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import {Head} from '@inertiajs/vue3';
+import FileList from "@/Pages/Dashboard/FileList.vue";
 import {ref, onMounted} from 'vue';
 
 const fileList = ref([]);
 const currentUserPath = ref('/');
-const previousUserPath = ref(null);
 const isCreateFolderModalOpen = ref(false);
 const inputFolderName = ref('');
 const fileInput = ref(null);
 const uploadStatusBar = ref(0);
+const isSearchModalOpen = ref(false);
+const searchDateFrom = ref('');
+const searchDateTo = ref('');
+const searchMaxSize = ref('');
+const isSearchResultModalOpen = ref(false);
+const searchedFileList = ref([]);
+const history = ref([]);
 
-const openFolder = (path) => {
+const openFolder = (path, isAddPathToHistory = true) => {
     try {
         axios.post('/api/file/open', {
             path: path,
         }).then(response => {
-            previousUserPath.value = currentUserPath.value;
-
             fileList.value = response.data.files;
             currentUserPath.value = path;
+
+            if (isAddPathToHistory) {
+                history.value.push(path);
+            }
         })
     } catch (error) {
         alert('Error while requesting root folder')
@@ -44,7 +53,7 @@ const createFolder = () => {
         axios.post('/api/file/create', {
             path: pathToNewFolder,
         }).then(response => {
-            openFolder(currentUserPath.value)
+            openFolder(currentUserPath.value, false)
             closeCreateFolderModalOpen();
         })
     } catch (error) {
@@ -72,14 +81,38 @@ const handleFileUpload = (event) => {
                 },
             })
             .then(response => {
-                openFolder(currentUserPath.value)
+                openFolder(currentUserPath.value, false)
                 uploadStatusBar.value = 0
+
+                if (fileInput.value) {
+                    fileInput.value.value = "";
+                }
             })
         } catch (error) {
             alert('Error while uploading files: ' + error);
         }
     }
 }
+
+const openSearchResultModel = () => {
+    isSearchResultModalOpen.value = true;
+};
+
+const closeSearchResultModel = () => {
+    isSearchResultModalOpen.value = false;
+};
+
+const searchFiles = () => {
+    axios.post('/api/file/search', {
+        dateFrom: searchDateFrom.value,
+        dateTo: searchDateTo.value,
+        maxSize: searchMaxSize.value
+    }).then(response => {
+        closeSearchModal()
+        openSearchResultModel()
+        searchedFileList.value = response.data.files;
+    }).catch(() => alert('Ошибка при поиске файлов'));
+};
 
 const triggerFileInput = () => {
     fileInput.value.click();
@@ -93,20 +126,37 @@ const closeCreateFolderModalOpen = () => {
     isCreateFolderModalOpen.value = false;
 }
 
+const openSearchModal = () => {
+    isSearchModalOpen.value = true;
+};
+
+const closeSearchModal = () => {
+    isSearchModalOpen.value = false;
+};
+
 const goBack = () => {
-    if (previousUserPath.value) {
-        openFolder(previousUserPath.value);
-    } else {
-        alert('cant go back');
+    if (history.value.length > 1) {
+        history.value.pop();
+        openFolder(history.value[history.value.length - 1], false);
     }
 };
 
-const deleteFile = (path) => {
+
+const deleteFile = (item) => {
+    let path = '';
+
+    if (item.path === '/') {
+        path = item.path + item.name;
+    }
+    else {
+        path = item.path + '/' + item.name;
+    }
+
     try {
         axios.post('/api/file/delete', {
             path: path,
         }).then(response => {
-            openFolder(currentUserPath.value)
+            openFolder(currentUserPath.value, false)
         })
     } catch (error) {
         alert(error)
@@ -149,6 +199,9 @@ onMounted(() => {
                                 <button class="btn btn-secondary" @click="openCreateFolderModal()">
                                     <i class="fas fa-folder-plus mr-2"></i> Создать папку
                                 </button>
+                                <button class="btn btn-primary" @click="openSearchModal">
+                                    <i class="fas fa-search mr-2"></i> Поиск
+                                </button>
                             </div>
                             <div v-if="uploadStatusBar > 0" class="progress-bar">
                                 <div class="progress-fill" :style="{ width: uploadStatusBar + '%' }"></div>
@@ -157,8 +210,8 @@ onMounted(() => {
                                 <div class="grid grid-cols-1 gap-4">
                                     <div
                                         class="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm cursor-pointer"
-                                        v-if="previousUserPath != currentUserPath"
-                                        @click="goBack()"
+                                        v-if="history.length > 1"
+                                        @click="goBack"
                                     >
                                         <div class="flex items-center space-x-4">
                                             <i
@@ -169,42 +222,51 @@ onMounted(() => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div
-                                        v-for="item in fileList"
-                                        :key="item.name"
-                                        :class="[
-                                            'flex items-center justify-between bg-white p-4 rounded-lg shadow-sm',
-                                            item.type === 'directory' ? 'cursor-pointer' : 'cursor-default'
-                                        ]"
-                                        @click="item.type === 'directory' ? openFolder(item.name) : null"
-                                    >
-                                        <div class="flex items-center space-x-4">
-                                            <i
-                                                v-if="item.type === 'directory'"
-                                                class="fas fa-folder text-yellow-500"
-                                            ></i>
-                                            <i
-                                                v-else
-                                                class="fas fa-file text-gray-500"
-                                            ></i>
-                                            <div>
-                                                <span class="text-gray-800">{{ item.name }}</span>
-                                                <span class="block text-sm text-gray-500">
-                                                    {{ item.size }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <button
-                                            class="text-red-500 hover:text-red-700"
-                                            @click="deleteFile(item.name)"
-                                        >
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
+                                    <FileList :fileList="fileList" :openFolder="openFolder" :isDeleteIcon="true" :deleteFile="deleteFile"></FileList>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="isSearchModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+                <h2 class="text-xl font-bold mb-4">Фильтр поиска</h2>
+                <label class="block text-gray-700">Дата от:</label>
+                <input type="date" v-model="searchDateFrom" class="w-full p-2 border rounded-lg mb-4"/>
+
+                <label class="block text-gray-700">Дата до:</label>
+                <input type="date" v-model="searchDateTo" class="w-full p-2 border rounded-lg mb-4"/>
+
+                <label class="block text-gray-700">Размер до (MB):</label>
+                <input type="number" v-model="searchMaxSize" class="w-full p-2 border rounded-lg mb-4"/>
+
+                <div class="flex justify-end space-x-4">
+                    <button class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg" @click="closeSearchModal">
+                        Отмена
+                    </button>
+                    <button class="bg-blue-500 text-white px-4 py-2 rounded-lg" @click="searchFiles">
+                        Искать
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="isSearchResultModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+                <h2 class="text-xl font-bold mb-4">Результаты поиска</h2>
+                <div v-if="fileList.length === 0" class="text-center text-gray-500">
+                    <p>Файлы не найдены</p>
+                </div>
+                <div v-else>
+                    <FileList :fileList="searchedFileList" :openFolder="openFolder" :isDeleteIcon="false"></FileList>
+                </div>
+                <div class="flex justify-end space-x-4">
+                    <button class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg" @click="closeSearchResultModel">
+                        Закрыть
+                    </button>
                 </div>
             </div>
         </div>

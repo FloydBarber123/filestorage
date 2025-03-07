@@ -12,6 +12,7 @@ class StorageUserFilesModel extends Model
         'user_id',
         'size',
         'path',
+        'ext',
     ];
 
     /**
@@ -24,7 +25,8 @@ class StorageUserFilesModel extends Model
             userId: $this->user_id,
             name: $this->name,
             size: $this->size,
-            path: $this->path
+            path: $this->path,
+            ext: $this->ext
         );
     }
 }

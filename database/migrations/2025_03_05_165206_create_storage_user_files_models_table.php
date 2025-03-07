@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('name');
             $table->bigInteger('size');
             $table->string('path');
+            $table->string('ext');
             $table->timestamps();
 
             $table->index(['created_at', 'size']);
