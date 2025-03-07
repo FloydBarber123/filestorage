@@ -7,6 +7,7 @@ use App\Entity\StorageFileEntity;
 use App\Exceptions\StorageFilesException;
 use App\Repository\StorageFilesRepository;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
@@ -82,7 +83,7 @@ class StorageFilesService
         }
     }
 
-    public function openFolder(string $path, int $page = 1, int $perPage = 10): array
+    public function openFolder(string $path, int $page = 1, int $perPage = 10): LengthAwarePaginator
     {
         $pathToOpen = $this->rootUserFolder . $path;
         if (!$this->fileIsExist($pathToOpen)) {
@@ -91,8 +92,17 @@ class StorageFilesService
 
         $directories = $this->getDirectoriesByPath($pathToOpen);
         $files = $this->getFilesByPath($pathToOpen);
+        $items = array_merge($directories, $files);
 
-        return array_merge($directories, $files);
+        $offset = ($page - 1) * $perPage;
+        $pagedItems = array_slice($items, $offset, $perPage);
+
+        return new LengthAwarePaginator(
+            $pagedItems,
+            count($items),
+            $perPage,
+            $page,
+        );
     }
 
     public function deleteFile(string $path): void

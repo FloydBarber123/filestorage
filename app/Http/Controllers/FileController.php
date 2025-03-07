@@ -21,10 +21,14 @@ class FileController extends Controller
     public function openFolder(Request $request): JsonResponse
     {
         try {
-            $files = $this->storageService->openFolder($request->input('path'));
+            $files = $this->storageService->openFolder(
+                $request->input('path'),
+                $request->input('page'),
+                $request->input('perPage'),
+            );
 
             return response()->json([
-                'files' => $files,
+                'files' => $files->items(),
             ]);
         } catch (StorageFilesException $e) {
             Log::error("Files error: " . $e->getMessage());

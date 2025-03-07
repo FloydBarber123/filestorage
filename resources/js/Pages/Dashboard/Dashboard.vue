@@ -17,23 +17,46 @@ const searchMaxSize = ref('');
 const isSearchResultModalOpen = ref(false);
 const searchedFileList = ref([]);
 const history = ref([]);
+const page = ref(1);
+const perPage = 50;
+const isLoading = ref(false);
+const isEndReached = ref(false);
 
-const openFolder = (path, isAddPathToHistory = true) => {
-    try {
-        axios.post('/api/file/open', {
-            path: path,
-        }).then(response => {
-            fileList.value = response.data.files;
-            currentUserPath.value = path;
-
-            if (isAddPathToHistory) {
-                history.value.push(path);
-            }
-        })
-    } catch (error) {
-        alert('Error while requesting root folder')
+const openFolder = async (path, isAddPathToHistory = true, newPage = 1) => {
+    if (newPage === 1) {
+        fileList.value = [];
+        isEndReached.value = false;
     }
-}
+
+    try {
+        const response = await axios.post('/api/file/open', {
+            path,
+            page: newPage,
+            perPage: perPage
+        });
+
+        if (response.data.files.length === 0) {
+            isEndReached.value = true;
+        } else {
+            fileList.value = newPage === 1
+                ? response.data.files
+                : [...fileList.value, ...response.data.files];
+
+            page.value = newPage + 1;
+        }
+
+        currentUserPath.value = path;
+
+        if (isAddPathToHistory && (!history.value.length || history.value[history.value.length - 1] !== path)) {
+            history.value.push(path);
+        }
+        isLoading.value = false;
+    } catch (error) {
+        console.error('Ошибка при загрузке файлов:', error);
+        alert('Ошибка при загрузке файлов');
+    }
+};
+
 
 const createFolder = () => {
     const folderName = inputFolderName.value.trim();
@@ -44,8 +67,7 @@ const createFolder = () => {
     let pathToNewFolder = '';
     if (currentUserPath.value === '/') {
         pathToNewFolder = folderName;
-    }
-    else {
+    } else {
         pathToNewFolder = currentUserPath.value + '/' + inputFolderName.value;
     }
 
@@ -60,6 +82,19 @@ const createFolder = () => {
         alert(error)
     }
 }
+
+const loadMoreFiles = () => {
+    if (isLoading.value || isEndReached.value) return;
+
+    isLoading.value = true;
+    openFolder(currentUserPath.value, true, page.value);
+};
+
+const handleScroll = () => {
+    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+        loadMoreFiles();
+    }
+};
 
 const handleFileUpload = (event) => {
     const files = event.target.files;
@@ -79,8 +114,7 @@ const handleFileUpload = (event) => {
                 onUploadProgress: (progressEvent) => {
                     uploadStatusBar.value = Math.round((progressEvent.loaded / progressEvent.total) * 100);
                 },
-            })
-            .then(response => {
+            }).then(response => {
                 openFolder(currentUserPath.value, false)
                 uploadStatusBar.value = 0
 
@@ -147,8 +181,7 @@ const deleteFile = (item) => {
 
     if (item.path === '/') {
         path = item.path + item.name;
-    }
-    else {
+    } else {
         path = item.path + '/' + item.name;
     }
 
@@ -165,6 +198,7 @@ const deleteFile = (item) => {
 
 onMounted(() => {
     openFolder(currentUserPath.value);
+    window.addEventListener('scroll', handleScroll);
 });
 </script>
 
@@ -222,7 +256,8 @@ onMounted(() => {
                                             </div>
                                         </div>
                                     </div>
-                                    <FileList :fileList="fileList" :openFolder="openFolder" :isDeleteIcon="true" :deleteFile="deleteFile"></FileList>
+                                    <FileList :fileList="fileList" :openFolder="openFolder" :isDeleteIcon="true"
+                                              :deleteFile="deleteFile"></FileList>
                                 </div>
                             </div>
                         </div>
@@ -254,7 +289,8 @@ onMounted(() => {
             </div>
         </div>
 
-        <div v-if="isSearchResultModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div v-if="isSearchResultModalOpen"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div class="bg-white p-6 rounded-lg shadow-lg w-96">
                 <h2 class="text-xl font-bold mb-4">Результаты поиска</h2>
                 <div v-if="fileList.length === 0" class="text-center text-gray-500">
