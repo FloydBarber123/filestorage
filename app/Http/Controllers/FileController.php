@@ -134,7 +134,9 @@ class FileController extends Controller
         try {
             return response()->json(
                 [
-                    'files' => $this->storageService->searchFiles($request),
+                    'files' => $this->storageService
+                        ->searchFiles($request)
+                        ->toArray(),
                 ]
             );
         } catch (Throwable $t) {

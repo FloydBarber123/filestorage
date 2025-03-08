@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Dto\StorageFilesFilterDto;
+use App\Entity\StorageFileCollection;
 use App\Entity\StorageFileEntity;
 use App\Exceptions\StorageFilesException;
 use App\Repository\StorageFilesRepository;
@@ -26,17 +27,15 @@ class StorageFilesService
         $this->repository = new StorageFilesRepository();
     }
 
-    public function searchFiles(Request $request): array
+    public function searchFiles(Request $request): StorageFileCollection
     {
-        return $this->repository
-            ->searchByFilter(
+        return $this->repository->searchByFilter(
                 new StorageFilesFilterDto(
                     dateFrom: $request->input('dateFrom'),
                     dateTo: $request->input('dateTo'),
                     maxSize: $request->input('maxSize')
                 )
-            )
-            ->toArray();
+            );
     }
 
     public function uploadFiles(array $files, string $path)
@@ -114,13 +113,13 @@ class StorageFilesService
 
         if (Storage::directoryExists($pathToDelete)) {
             Storage::deleteDirectory($pathToDelete);
-            return;
         }
 
         if (Storage::exists($pathToDelete)) {
             Storage::delete($pathToDelete);
-            return;
         }
+
+        //$this->repository->delete();
     }
 
     private function getUserRootFolderPath(): string

@@ -181,15 +181,17 @@ const deleteFile = (item) => {
 
     if (item.path === '/') {
         path = item.path + item.name;
-    } else {
+    }
+    else if (item.ext === 'directory') {
+        path = item.name
+    }
+    else {
         path = item.path + '/' + item.name;
     }
 
     try {
         axios.post('/api/file/delete', {
             path: path,
-        }).then(response => {
-            openFolder(currentUserPath.value, false)
         })
     } catch (error) {
         alert(error)
@@ -297,7 +299,9 @@ onMounted(() => {
                     <p>Файлы не найдены</p>
                 </div>
                 <div v-else>
-                    <FileList :fileList="searchedFileList" :openFolder="openFolder" :isDeleteIcon="false"></FileList>
+                    <div class="max-h-96 overflow-y-auto mb-4">
+                        <FileList :fileList="searchedFileList" :openFolder="openFolder" :isDeleteIcon="false"></FileList>
+                    </div>
                 </div>
                 <div class="flex justify-end space-x-4">
                     <button class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg" @click="closeSearchResultModel">

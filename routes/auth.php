@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -57,3 +58,11 @@ Route::middleware('auth')->group(function () {
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
 });
+
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/users', [UserController::class, 'index'])->name('admin.users');
+    Route::post('/admin/users', [UserController::class, 'store'])->name('admin.users.store');
+    Route::put('/admin/users/{user}/password', [UserController::class, 'updatePassword'])->name('admin.users.updatePassword');
+    Route::delete('/admin/users/{user}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+});
+
